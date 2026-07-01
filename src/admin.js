@@ -11,9 +11,10 @@ const esc = (v) => String(v || ``).replace(/[&<>]/g, (c) => ({ [`&`]: `&amp;`, [
 const img = (id) => id ? `${config.endpoint}/storage/buckets/${config.bucketId}/files/${id}/view?project=${config.projectId}` : ``;
 async function api(path, method = `GET`, payload = {}) {
   const executionHeaders = { [`content-type`]: `application/json` };
+  let executionPayload = payload;
   if (path.startsWith(`/admin/`)) {
     const jwt = await account.createJWT();
-    executionHeaders[`x-admin-jwt`] = jwt.jwt;
+    executionPayload = { ...payload, __adminJwt: jwt.jwt };
   }
   const response = await fetch(`${config.endpoint}/functions/${config.functionId}/executions`, {
     method: `POST`,
@@ -22,7 +23,7 @@ async function api(path, method = `GET`, payload = {}) {
       async: false,
       path,
       method,
-      body: method === `GET` ? `` : JSON.stringify(payload),
+      body: path.startsWith(`/admin/`) || method !== `GET` ? JSON.stringify(executionPayload) : ``,
       headers: executionHeaders
     })
   });

@@ -18,7 +18,8 @@ async function getSettings(db) { const rows = await db.listDocuments(databaseId,
 
 async function requireAdmin(req) {
   if (!adminEmail) throw new Error(`ADMIN_EMAIL is not set in Appwrite function variables.`);
-  const jwt = req.headers[`x-admin-jwt`] || req.headers[`X-Admin-Jwt`];
+  const requestBody = body(req);
+  const jwt = req.headers[`x-admin-jwt`] || req.headers[`X-Admin-Jwt`] || requestBody.__adminJwt;
   if (!jwt) throw new Error(`Please sign in as admin.`);
   const userClient = new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || `https://sgp.cloud.appwrite.io/v1`)
@@ -55,7 +56,7 @@ export default async ({ req, res }) => {
     if (requestPath.startsWith(`/admin/products/`) && req.method === `DELETE`) { await db.updateDocument(databaseId, collection.products, requestPath.split(`/`).pop(), { active: false }); return ok(res, { ok: true }); }
     if (requestPath === `/admin/fabrics` && req.method === `POST`) { const data = body(req); const row = await db.createDocument(databaseId, collection.fabrics, ID.unique(), { name: data.name, imageId: data.imageId || ``, active: true, sortOrder: Date.now() }); return ok(res, row); }
     if (requestPath.startsWith(`/admin/fabrics/`) && req.method === `DELETE`) { await db.updateDocument(databaseId, collection.fabrics, requestPath.split(`/`).pop(), { active: false }); return ok(res, { ok: true }); }
-    if (requestPath === `/admin/settings` && req.method === `PUT`) { const data = body(req); for (const [key, value] of Object.entries(data)) await db.updateDocument(databaseId, collection.settings, key, { key, value: String(value || ``) }); return ok(res, { ok: true }); }
+    if (requestPath === `/admin/settings` && req.method === `PUT`) { const data = body(req); delete data.__adminJwt; for (const [key, value] of Object.entries(data)) await db.updateDocument(databaseId, collection.settings, key, { key, value: String(value || ``) }); return ok(res, { ok: true }); }
     return ok(res, { error: `Not found` }, 404);
   } catch (error) {
     return ok(res, { error: error.message }, 400);
