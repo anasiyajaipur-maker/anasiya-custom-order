@@ -1,9 +1,8 @@
 import { config } from './config.js';
 const sdk = await import(`appwrite`);
-const { Account, Client, Functions, ID, Storage } = sdk;
+const { Account, Client, ID, Storage } = sdk;
 const client = new Client().setEndpoint(config.endpoint).setProject(config.projectId);
 const account = new Account(client);
-const functions = new Functions(client);
 const storage = new Storage(client);
 const state = { catalog: { products: [], fabrics: [], settings: {} }, orders: [] };
 const $ = (s) => document.querySelector(s);
@@ -11,14 +10,25 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (v) => String(v || ``).replace(/[&<>]/g, (c) => ({ [`&`]: `&amp;`, [`<`]: `&lt;`, [`>`]: `&gt;` }[c]));
 const img = (id) => id ? `${config.endpoint}/storage/buckets/${config.bucketId}/files/${id}/view?project=${config.projectId}` : ``;
 async function api(path, method = `GET`, payload = {}) {
-  const headers = { [`content-type`]: `application/json` };
+  const executionHeaders = { [`content-type`]: `application/json` };
   if (path.startsWith(`/admin/`)) {
     const jwt = await account.createJWT();
-    headers[`x-admin-jwt`] = jwt.jwt;
+    executionHeaders[`x-admin-jwt`] = jwt.jwt;
   }
-  const run = await functions.createExecution({ functionId: config.functionId, body: method === `GET` ? `` : JSON.stringify(payload), async: false, path, method, headers });
+  const response = await fetch(`${config.endpoint}/functions/${config.functionId}/executions`, {
+    method: `POST`,
+    headers: { [`Content-Type`]: `application/json`, [`X-Appwrite-Project`]: config.projectId },
+    body: JSON.stringify({
+      async: false,
+      path,
+      method,
+      body: method === `GET` ? `` : JSON.stringify(payload),
+      headers: executionHeaders
+    })
+  });
+  const run = await response.json();
   const data = JSON.parse(run.responseBody || run.response || `{}`);
-  if (run.status !== `completed` || data.error) throw new Error(data.error || `The Appwrite function did not complete.`);
+  if (!response.ok || run.status !== `completed` || data.error) throw new Error(data.error || `The Appwrite function did not complete.`);
   return data;
 }
 async function upload(file) { if (!file || !file.name) return ``; return (await storage.createFile({ bucketId: config.bucketId, fileId: ID.unique(), file })).$id; }
