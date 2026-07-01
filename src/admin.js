@@ -27,7 +27,25 @@ function renderOrders() { $(`#orders-list`).innerHTML = state.orders.length ? st
 function fillSettings() { const f = $(`#settings-form`); f.currency.value = state.catalog.settings.currency || `INR`; f.shopDomain.value = state.catalog.settings.shopDomain || `anasiya.com`; f.customVariantId.value = state.catalog.settings.customVariantId || ``; f.policyText.value = state.catalog.settings.policyText || ``; }
 async function loadCatalog() { state.catalog = await api(`/catalog`); renderProducts(); renderFabrics(); fillSettings(); }
 async function loadOrders() { state.orders = (await api(`/admin/orders`)).orders || []; renderOrders(); }
-$(`#login-form`).onsubmit = async (e) => { e.preventDefault(); try { await account.createEmailPasswordSession({ email: $(`#login-email`).value, password: $(`#login-password`).value }); view(`dashboard`); await loadCatalog(); await loadOrders(); } catch (err) { $(`#login-message`).textContent = err.message; } };
+$(`#login-form`).onsubmit = async (e) => {
+  e.preventDefault();
+  $(`#login-message`).textContent = ``;
+  const credentials = { email: $(`#login-email`).value, password: $(`#login-password`).value };
+  try {
+    await account.createEmailPasswordSession(credentials);
+  } catch (err) {
+    if (String(err.message || ``).includes(`session is active`)) {
+      await account.deleteSession(`current`).catch(() => {});
+      await account.createEmailPasswordSession(credentials);
+    } else {
+      $(`#login-message`).textContent = err.message;
+      return;
+    }
+  }
+  view(`dashboard`);
+  await loadCatalog();
+  await loadOrders();
+};
 $(`#logout-button`).onclick = async () => { await account.deleteSession(`current`); view(`login`); };
 $$(`.tab`).forEach((b) => b.onclick = () => tab(b.dataset.tab));
 $(`#refresh-orders`).onclick = loadOrders;
