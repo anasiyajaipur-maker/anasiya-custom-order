@@ -11,7 +11,12 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (v) => String(v || ``).replace(/[&<>]/g, (c) => ({ [`&`]: `&amp;`, [`<`]: `&lt;`, [`>`]: `&gt;` }[c]));
 const img = (id) => id ? `${config.endpoint}/storage/buckets/${config.bucketId}/files/${id}/view?project=${config.projectId}` : ``;
 async function api(path, method = `GET`, payload = {}) {
-  const run = await functions.createExecution({ functionId: config.functionId, body: method === `GET` ? `` : JSON.stringify(payload), async: false, path, method, headers: { [`content-type`]: `application/json` } });
+  const headers = { [`content-type`]: `application/json` };
+  if (path.startsWith(`/admin/`)) {
+    const jwt = await account.createJWT();
+    headers[`x-admin-jwt`] = jwt.jwt;
+  }
+  const run = await functions.createExecution({ functionId: config.functionId, body: method === `GET` ? `` : JSON.stringify(payload), async: false, path, method, headers });
   const data = JSON.parse(run.responseBody || run.response || `{}`);
   if (run.status !== `completed` || data.error) throw new Error(data.error || `The Appwrite function did not complete.`);
   return data;

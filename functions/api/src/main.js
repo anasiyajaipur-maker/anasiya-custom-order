@@ -1,4 +1,4 @@
-import { Client, Databases, ID, Query, Users } from 'node-appwrite';
+import { Account, Client, Databases, ID, Query } from 'node-appwrite';
 
 const databaseId = process.env.APPWRITE_DATABASE_ID || `anasiya_custom_order`;
 const collection = { products: `products`, fabrics: `fabrics`, orders: `orders`, settings: `settings` };
@@ -18,9 +18,13 @@ async function getSettings(db) { const rows = await db.listDocuments(databaseId,
 
 async function requireAdmin(req) {
   if (!adminEmail) throw new Error(`ADMIN_EMAIL is not set in Appwrite function variables.`);
-  const userId = req.headers[`x-appwrite-user-id`] || req.headers[`X-Appwrite-User-Id`];
-  if (!userId) throw new Error(`Please sign in as admin.`);
-  const user = await new Users(makeClient()).get(userId);
+  const jwt = req.headers[`x-admin-jwt`] || req.headers[`X-Admin-Jwt`];
+  if (!jwt) throw new Error(`Please sign in as admin.`);
+  const userClient = new Client()
+    .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || `https://sgp.cloud.appwrite.io/v1`)
+    .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID || `6a454ec900060f12e3ec`)
+    .setJWT(jwt);
+  const user = await new Account(userClient).get();
   if ((user.email || ``).toLowerCase() !== adminEmail.toLowerCase()) throw new Error(`This account is not allowed to manage the admin panel.`);
 }
 
