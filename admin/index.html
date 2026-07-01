@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Anasiya Admin</title>
+    <link rel='stylesheet' href='/src/styles.css' />
+  </head>
+  <body>
+    <main class='admin-shell'>
+      <section class='admin-login' data-view='login'>
+        <div><p class='eyebrow'>Admin</p><h1>Anasiya Custom Orders</h1><p>Sign in with the admin email you set in Appwrite.</p></div>
+        <form id='login-form' class='stack'><input id='login-email' type='email' placeholder='Email' required /><input id='login-password' type='password' placeholder='Password' required /><button class='primary-action' type='submit'>Sign in</button><p class='message' id='login-message'></p></form>
+      </section>
+      <section class='admin-dashboard is-hidden' data-view='dashboard'>
+        <header class='admin-topbar'><div><p class='eyebrow'>Custom Order Admin</p><h1>Catalog and orders</h1></div><button class='ghost-action' id='logout-button' type='button'>Sign out</button></header>
+        <nav class='tabs'><button class='tab is-active' data-tab='orders' type='button'>Orders</button><button class='tab' data-tab='products' type='button'>Products</button><button class='tab' data-tab='fabrics' type='button'>Fabrics</button><button class='tab' data-tab='settings' type='button'>Settings</button></nav>
+        <section class='panel' data-panel='orders'><div class='panel-head'><h2>Orders</h2><button class='ghost-action' id='refresh-orders' type='button'>Refresh</button></div><div id='orders-list' class='list-grid'></div></section>
+        <section class='panel is-hidden' data-panel='products'><div class='panel-head'><h2>Products</h2></div><form id='product-form' class='editor-grid'><input name='name' placeholder='Product name' required /><input name='price' type='number' min='0' step='1' placeholder='Price' required /><label class='file-field'>Photo 1<input name='image1' type='file' accept='image/*' /></label><label class='file-field'>Photo 2<input name='image2' type='file' accept='image/*' /></label><div class='detail-editor'><div class='panel-head compact'><span>Details</span><button id='add-detail' class='ghost-action' type='button'>Add detail</button></div><div id='detail-fields' class='stack'></div></div><button class='primary-action' type='submit'>Save product</button></form><div id='products-list' class='list-grid'></div></section>
+        <section class='panel is-hidden' data-panel='fabrics'><div class='panel-head'><h2>Fabrics</h2></div><form id='fabric-form' class='editor-grid'><input name='name' placeholder='Fabric name' required /><label class='file-field'>Fabric image<input name='image' type='file' accept='image/*' required /></label><button class='primary-action' type='submit'>Save fabric</button></form><div id='fabrics-list' class='list-grid'></div></section>
+        <section class='panel is-hidden' data-panel='settings'><form id='settings-form' class='editor-grid'><input name='currency' placeholder='Currency' /><input name='shopDomain' placeholder='Shopify domain, example anasiya.com' /><input name='customVariantId' placeholder='Shopify custom product variant ID' /><textarea name='policyText' rows='5' placeholder='Policy text shown before payment'></textarea><button class='primary-action' type='submit'>Save settings</button></form><p class='message' id='settings-message'></p></section>
+      </section>
+    </main>
+    <script type='module' src='/src/admin.js'></script>
+  </body>
+</html>

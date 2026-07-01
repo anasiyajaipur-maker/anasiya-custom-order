@@ -1,0 +1,19 @@
+{
+    "name":  "anasiya-custom-order",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite --host 127.0.0.1",
+                    "build":  "vite build",
+                    "preview":  "vite preview --host 127.0.0.1",
+                    "setup:appwrite":  "node scripts/setup-appwrite.mjs"
+                },
+    "dependencies":  {
+                         "appwrite":  "^26.1.0",
+                         "node-appwrite":  "^26.2.0"
+                     },
+    "devDependencies":  {
+                            "vite":  "^8.1.2"
+                        }
+}
