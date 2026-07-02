@@ -1,8 +1,9 @@
 import { config } from './config.js';
 const sdk = await import(`appwrite`);
-const { Account, Client, ID, Storage } = sdk;
+const { Account, Client, Functions, ID, Storage } = sdk;
 const client = new Client().setEndpoint(config.endpoint).setProject(config.projectId);
 const account = new Account(client);
+const functions = new Functions(client);
 const storage = new Storage(client);
 const state = { catalog: { products: [], fabrics: [], settings: {} }, orders: [] };
 const $ = (s) => document.querySelector(s);
@@ -10,29 +11,32 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (v) => String(v || ``).replace(/[&<>]/g, (c) => ({ [`&`]: `&amp;`, [`<`]: `&lt;`, [`>`]: `&gt;` }[c]));
 const img = (id) => id ? `${config.endpoint}/storage/buckets/${config.bucketId}/files/${id}/view?project=${config.projectId}` : ``;
 async function api(path, method = `GET`, payload = {}) {
-  const executionHeaders = { [`content-type`]: `application/json` };
-  let executionPayload = payload;
-  if (path.startsWith(`/admin/`)) {
-    const jwt = await account.createJWT();
-    executionPayload = { ...payload, __adminJwt: jwt.jwt };
-  }
-  const response = await fetch(`${config.endpoint}/functions/${config.functionId}/executions`, {
-    method: `POST`,
-    headers: { [`Content-Type`]: `application/json`, [`X-Appwrite-Project`]: config.projectId },
-    body: JSON.stringify({
-      async: false,
-      path,
-      method,
-      body: path.startsWith(`/admin/`) || method !== `GET` ? JSON.stringify(executionPayload) : ``,
-      headers: executionHeaders
-    })
+  const run = await functions.createExecution({
+    functionId: config.functionId,
+    body: method === `GET` ? `` : JSON.stringify(payload),
+    async: false,
+    xpath: path,
+    method,
+    headers: { [`content-type`]: `application/json` }
   });
-  const run = await response.json();
   const data = JSON.parse(run.responseBody || run.response || `{}`);
-  if (!response.ok || run.status !== `completed` || data.error) throw new Error(data.error || `The Appwrite function did not complete.`);
+  if (run.status !== `completed` || data.error) throw new Error(data.error || `The Appwrite function did not complete.`);
   return data;
 }
 async function upload(file) { if (!file || !file.name) return ``; return (await storage.createFile({ bucketId: config.bucketId, fileId: ID.unique(), file })).$id; }
+async function submit(form, message, action) {
+  const button = form.querySelector(`[type=submit]`);
+  message.textContent = `Saving...`;
+  button.disabled = true;
+  try {
+    await action();
+    message.textContent = `Saved successfully.`;
+  } catch (error) {
+    message.textContent = error.message || `Could not save. Please try again.`;
+  } finally {
+    button.disabled = false;
+  }
+}
 function view(name) { $$(`[data-view]`).forEach((el) => el.classList.toggle(`is-hidden`, el.dataset.view !== name)); }
 function tab(name) { $$(`.tab`).forEach((el) => el.classList.toggle(`is-active`, el.dataset.tab === name)); $$(`[data-panel]`).forEach((el) => el.classList.toggle(`is-hidden`, el.dataset.panel !== name)); }
 function detail(value = ``) { const row = document.createElement(`div`); row.className = `detail-row`; row.innerHTML = `<input name=details[] placeholder=Product-detail value=${esc(value)}><button class=icon-action type=button aria-label=Remove>x</button>`; row.querySelector(`button`).onclick = () => row.remove(); return row; }
@@ -67,7 +71,7 @@ $$(`.tab`).forEach((b) => b.onclick = () => tab(b.dataset.tab));
 $(`#refresh-orders`).onclick = loadOrders;
 $(`#add-detail`).onclick = () => $(`#detail-fields`).appendChild(detail());
 ensureDetail();
-$(`#product-form`).onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); await api(`/admin/products`, `POST`, { name: f.get(`name`), price: Number(f.get(`price`) || 0), image1Id: await upload(f.get(`image1`)), image2Id: await upload(f.get(`image2`)), details: f.getAll(`details[]`).map((x)=>String(x).trim()).filter(Boolean) }); e.currentTarget.reset(); $(`#detail-fields`).innerHTML = ``; ensureDetail(); await loadCatalog(); };
-$(`#fabric-form`).onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); await api(`/admin/fabrics`, `POST`, { name: f.get(`name`), imageId: await upload(f.get(`image`)) }); e.currentTarget.reset(); await loadCatalog(); };
+$(`#product-form`).onsubmit = async (e) => { e.preventDefault(); const form = e.currentTarget; await submit(form, $(`#product-message`), async () => { const f = new FormData(form); await api(`/admin/products`, `POST`, { name: f.get(`name`), price: Number(f.get(`price`) || 0), image1Id: await upload(f.get(`image1`)), image2Id: await upload(f.get(`image2`)), details: f.getAll(`details[]`).map((x)=>String(x).trim()).filter(Boolean) }); form.reset(); $(`#detail-fields`).innerHTML = ``; ensureDetail(); await loadCatalog(); }); };
+$(`#fabric-form`).onsubmit = async (e) => { e.preventDefault(); const form = e.currentTarget; await submit(form, $(`#fabric-message`), async () => { const f = new FormData(form); await api(`/admin/fabrics`, `POST`, { name: f.get(`name`), imageId: await upload(f.get(`image`)) }); form.reset(); await loadCatalog(); }); };
 $(`#settings-form`).onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); await api(`/admin/settings`, `PUT`, { currency: f.get(`currency`), shopDomain: f.get(`shopDomain`), customVariantId: f.get(`customVariantId`), policyText: f.get(`policyText`) }); $(`#settings-message`).textContent = `Settings saved.`; await loadCatalog(); };
 account.get().then(async()=>{ view(`dashboard`); await loadCatalog(); await loadOrders(); }).catch(()=>view(`login`));

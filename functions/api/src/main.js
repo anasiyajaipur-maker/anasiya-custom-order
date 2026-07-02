@@ -19,7 +19,7 @@ async function getSettings(db) { const rows = await db.listDocuments(databaseId,
 async function requireAdmin(req) {
   if (!adminEmail) throw new Error(`ADMIN_EMAIL is not set in Appwrite function variables.`);
   const requestBody = body(req);
-  const jwt = req.headers[`x-admin-jwt`] || req.headers[`X-Admin-Jwt`] || requestBody.__adminJwt;
+  const jwt = req.headers[`x-appwrite-user-jwt`] || req.headers[`X-Appwrite-User-Jwt`] || req.headers[`x-admin-jwt`] || req.headers[`X-Admin-Jwt`] || requestBody.__adminJwt;
   if (!jwt) throw new Error(`Please sign in as admin.`);
   const userClient = new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || `https://sgp.cloud.appwrite.io/v1`)
