@@ -1,10 +1,9 @@
 import { config } from './config.js';
 const sdk = await import(`appwrite`);
-const { Account, Client, Functions, ID, Storage } = sdk;
+const { Account, Client, Functions } = sdk;
 const client = new Client().setEndpoint(config.endpoint).setProject(config.projectId);
 const account = new Account(client);
 const functions = new Functions(client);
-const storage = new Storage(client);
 const state = { catalog: { products: [], fabrics: [], settings: {} }, orders: [] };
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -23,7 +22,26 @@ async function api(path, method = `GET`, payload = {}) {
   if (run.status !== `completed` || data.error) throw new Error(data.error || `The Appwrite function did not complete.`);
   return data;
 }
-async function upload(file) { if (!file || !file.name) return ``; return (await storage.createFile({ bucketId: config.bucketId, fileId: ID.unique(), file })).$id; }
+async function upload(file) {
+  if (!file || !file.name) return ``;
+  const image = await createImageBitmap(file);
+  const scale = Math.min(1, 1800 / Math.max(image.width, image.height));
+  const canvas = document.createElement(`canvas`);
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  canvas.getContext(`2d`).drawImage(image, 0, 0, canvas.width, canvas.height);
+  image.close();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, `image/jpeg`, 0.86));
+  if (!blob) throw new Error(`The selected image could not be prepared.`);
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(`,`)[1]);
+    reader.onerror = () => reject(new Error(`The selected image could not be read.`));
+    reader.readAsDataURL(blob);
+  });
+  const result = await api(`/admin/upload`, `POST`, { name: `${file.name.replace(/\.[^.]+$/, ``)}.jpg`, data });
+  return result.fileId;
+}
 async function submit(form, message, action) {
   const button = form.querySelector(`[type=submit]`);
   message.textContent = `Saving...`;

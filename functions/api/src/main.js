@@ -1,6 +1,8 @@
-import { Account, Client, Databases, ID, Query } from 'node-appwrite';
+import { Account, Client, Databases, ID, Query, Storage } from 'node-appwrite';
+import { InputFile } from 'node-appwrite/file';
 
 const databaseId = process.env.APPWRITE_DATABASE_ID || `anasiya_custom_order`;
+const bucketId = process.env.APPWRITE_BUCKET_ID || `catalog-images`;
 const collection = { products: `products`, fabrics: `fabrics`, orders: `orders`, settings: `settings` };
 const adminEmail = process.env.ADMIN_EMAIL || ``;
 
@@ -51,6 +53,16 @@ export default async ({ req, res }) => {
       return ok(res, { checkoutUrl });
     }
     await requireAdmin(req);
+    if (requestPath === `/admin/upload` && req.method === `POST`) {
+      const data = body(req);
+      const encoded = String(data.data || ``);
+      if (!encoded) throw new Error(`No image was received.`);
+      const buffer = Buffer.from(encoded, `base64`);
+      if (!buffer.length || buffer.length > 8000000) throw new Error(`Image must be smaller than 8 MB after optimization.`);
+      const safeName = String(data.name || `catalog-image.jpg`).replace(/[^a-zA-Z0-9._-]/g, `-`).slice(-120);
+      const file = await new Storage(makeClient()).createFile({ bucketId, fileId: ID.unique(), file: InputFile.fromBuffer(buffer, safeName) });
+      return ok(res, { fileId: file.$id });
+    }
     if (requestPath === `/admin/orders`) { const orders = await db.listDocuments(databaseId, collection.orders, [Query.orderDesc(`createdAt`)]); return ok(res, { orders: orders.documents }); }
     if (requestPath === `/admin/products` && req.method === `POST`) { const data = body(req); const row = await db.createDocument(databaseId, collection.products, ID.unique(), { name: data.name, price: Number(data.price || 0), image1Id: data.image1Id || ``, image2Id: data.image2Id || ``, detailsJson: JSON.stringify(data.details || []), active: true, sortOrder: Date.now() }); return ok(res, pack(row)); }
     if (requestPath.startsWith(`/admin/products/`) && req.method === `DELETE`) { await db.updateDocument(databaseId, collection.products, requestPath.split(`/`).pop(), { active: false }); return ok(res, { ok: true }); }
