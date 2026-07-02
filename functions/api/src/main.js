@@ -6,11 +6,11 @@ const bucketId = process.env.APPWRITE_BUCKET_ID || `catalog-images`;
 const collection = { products: `products`, fabrics: `fabrics`, orders: `orders`, settings: `settings` };
 const adminEmail = process.env.ADMIN_EMAIL || ``;
 
-function makeClient() {
+function makeClient(req) {
   return new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || `https://sgp.cloud.appwrite.io/v1`)
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID || `6a454ec900060f12e3ec`)
-    .setKey(process.env.APPWRITE_FUNCTION_API_KEY || process.env.APPWRITE_API_KEY || ``);
+    .setKey(req?.headers?.[`x-appwrite-key`] || req?.headers?.[`X-Appwrite-Key`] || process.env.APPWRITE_FUNCTION_API_KEY || process.env.APPWRITE_API_KEY || ``);
 }
 
 function ok(res, data, status = 200) { return res.json(data, status); }
@@ -33,7 +33,7 @@ async function requireAdmin(req) {
 
 export default async ({ req, res }) => {
   if (req.method === `OPTIONS`) return ok(res, {});
-  const db = new Databases(makeClient());
+  const db = new Databases(makeClient(req));
   const requestPath = req.path || `/`;
   try {
     if (requestPath === `/catalog` && req.method === `GET`) {
@@ -60,7 +60,7 @@ export default async ({ req, res }) => {
       const buffer = Buffer.from(encoded, `base64`);
       if (!buffer.length || buffer.length > 8000000) throw new Error(`Image must be smaller than 8 MB after optimization.`);
       const safeName = String(data.name || `catalog-image.jpg`).replace(/[^a-zA-Z0-9._-]/g, `-`).slice(-120);
-      const file = await new Storage(makeClient()).createFile({ bucketId, fileId: ID.unique(), file: InputFile.fromBuffer(buffer, safeName) });
+      const file = await new Storage(makeClient(req)).createFile({ bucketId, fileId: ID.unique(), file: InputFile.fromBuffer(buffer, safeName) });
       return ok(res, { fileId: file.$id });
     }
     if (requestPath === `/admin/orders`) { const orders = await db.listDocuments(databaseId, collection.orders, [Query.orderDesc(`createdAt`)]); return ok(res, { orders: orders.documents }); }
