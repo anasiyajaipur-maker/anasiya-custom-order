@@ -1,0 +1,63 @@
+{%- style -%}
+  #AnasiyaCustomOrder-{{ section.id }} {
+    display: flex;
+    justify-content: {{ section.settings.alignment }};
+    padding: {{ section.settings.space_top }}px 20px {{ section.settings.space_bottom }}px;
+  }
+  #AnasiyaCustomOrder-{{ section.id }} .anasiya-custom-order-button {
+    min-height: 48px;
+    padding: 12px 24px;
+    border: 1px solid #6f467c;
+    border-radius: 6px;
+    background: #6f467c;
+    color: #ffffff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #AnasiyaCustomOrder-{{ section.id }} .anasiya-custom-order-button:hover { background: #52345c; }
+  #AnasiyaCustomOrder-{{ section.id }} .anasiya-custom-order-button:focus-visible {
+    outline: 3px solid rgba(158, 106, 174, .35);
+    outline-offset: 3px;
+  }
+{%- endstyle -%}
+
+<div id="AnasiyaCustomOrder-{{ section.id }}">
+  <button class="anasiya-custom-order-button" type="button" data-anasiya-custom-order>
+    {{ section.settings.button_label | escape }}
+  </button>
+</div>
+
+<script>
+  (() => {
+    if (document.querySelector('script[data-anasiya-custom-order-script]')) return;
+    const script = document.createElement('script');
+    script.src = 'https://anasiya-custom-order.appwrite.network/embed.js';
+    script.defer = true;
+    script.dataset.anasiyaCustomOrderScript = 'true';
+    document.head.appendChild(script);
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Custom order button",
+  "settings": [
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Create a custom order" },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Alignment",
+      "default": "center",
+      "options": [
+        { "value": "flex-start", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "flex-end", "label": "Right" }
+      ]
+    },
+    { "type": "range", "id": "space_top", "label": "Top spacing", "min": 0, "max": 80, "step": 4, "unit": "px", "default": 20 },
+    { "type": "range", "id": "space_bottom", "label": "Bottom spacing", "min": 0, "max": 80, "step": 4, "unit": "px", "default": 20 }
+  ],
+  "presets": [{ "name": "Custom order button" }]
+}
+{% endschema %}

@@ -1,6 +1,6 @@
 (function () {
   const CONFIG = { endpoint: `https://sgp.cloud.appwrite.io/v1`, projectId: `6a454ec900060f12e3ec`, functionId: `anasiya-api`, bucketId: `catalog-images` };
-  const state = { open: false, step: 0, catalog: null, product: null, productDetail: false, fabric: null, busy: false, error: `` };
+  const state = { open: false, step: 0, catalog: null, product: null, productDetail: false, fabric: null, checkoutRequestId: null, busy: false, error: `` };
   const esc = (value) => String(value ?? ``).replace(/[&<>"']/g, (ch) => ({ [`&`]: `&amp;`, [`<`]: `&lt;`, [`>`]: `&gt;`, [`"`]: `&quot;`, [`'`]: `&#39;` }[ch]));
   const money = (value, currency = `INR`) => new Intl.NumberFormat(`en-IN`, { style: `currency`, currency, maximumFractionDigits: 0 }).format(Number(value || 0));
   const imageUrl = (id) => id ? `${CONFIG.endpoint}/storage/buckets/${CONFIG.bucketId}/files/${id}/view?project=${CONFIG.projectId}` : ``;
@@ -38,7 +38,7 @@
   }
 
   async function openTool() {
-    state.open = true; state.step = 0; state.productDetail = false; state.error = ``;
+    state.open = true; state.step = 0; state.productDetail = false; state.checkoutRequestId = null; state.error = ``;
     document.documentElement.classList.add(`aco-lock`);
     render();
     if (state.catalog) return;
@@ -86,13 +86,36 @@
     return `<div class="aco-review"><div class="aco-panel aco-summary-panel"><h3>Your selections</h3><div class="aco-review-selections"><div class="aco-review-choice"><div class="aco-review-thumb">${image(state.product?.image1Id, state.product?.name)}</div><div class="aco-review-choice-copy"><span>Selected product</span><strong>${esc(state.product?.name)}</strong></div></div><div class="aco-review-choice"><div class="aco-review-thumb">${image(state.fabric?.imageId, state.fabric?.name)}</div><div class="aco-review-choice-copy"><span>Selected print</span><strong>${esc(state.fabric?.name)}</strong></div></div></div><div class="aco-order-total"><span>Order total</span><strong>${money(state.product?.price, currency)}</strong></div><p class="aco-made-note">Made especially for you with your selected style and print.</p></div><div class="aco-panel aco-policy"><h3>Before you continue</h3><p>${esc(settings.policyText || `Custom orders are prepared specially for you. Delivery and fabric placement may vary slightly.`)}</p><div class="aco-trust"><span>Secure Shopify checkout</span><span>Order confirmation by email</span><span>Your selections are included with the order</span></div></div></div><div class="aco-footer aco-review-footer"><button class="aco-btn secondary" data-prev="1" type="button">Back</button><div class="aco-selection">Secure checkout powered by Shopify</div><button class="aco-btn" data-pay type="button" ${state.busy ? `disabled` : ``}>${state.busy ? `Preparing...` : `Confirm and pay`}</button></div>${state.error ? `<div class="aco-empty aco-error">${esc(state.error)}</div>` : ``}`;
   }
 
+  function sameShopHost(shopDomain) {
+    const current = window.location.hostname.toLowerCase().replace(/^www\./, ``);
+    const configured = String(shopDomain || ``).toLowerCase().replace(/^www\./, ``);
+    return current === configured;
+  }
+
+  async function continueToShopify(result) {
+    const root = window.Shopify?.routes?.root || `/`;
+    if (!window.Shopify || !sameShopHost(result.shopDomain)) {
+      window.location.assign(result.checkoutUrl);
+      return;
+    }
+    const response = await fetch(`${root}cart/add.js`, {
+      method: `POST`,
+      headers: { [`Content-Type`]: `application/json`, Accept: `application/json` },
+      body: JSON.stringify({ items: [{ id: result.variantId, quantity: 1, properties: result.properties }] })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.description || data.message || `This style could not be added to Shopify checkout.`);
+    window.location.assign(`${root}checkout`);
+  }
+
   async function pay() {
     if (!state.product || !state.fabric) return;
+    state.checkoutRequestId ||= globalThis.crypto?.randomUUID?.() || `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     state.busy = true; state.error = ``; render();
     try {
-      const result = await api(`/orders`, `POST`, { productId: state.product.$id, fabricId: state.fabric.$id, productName: state.product.name, fabricName: state.fabric.name, price: state.product.price });
-      if (result.checkoutUrl) window.location.href = result.checkoutUrl;
-      else throw new Error(`Shopify checkout is not configured yet.`);
+      const result = await api(`/orders`, `POST`, { productId: state.product.$id, fabricId: state.fabric.$id, requestId: state.checkoutRequestId });
+      if (!result.variantId || !result.checkoutUrl) throw new Error(`Shopify checkout is not configured yet.`);
+      await continueToShopify(result);
     } catch (error) { state.busy = false; state.error = error.message || `Could not prepare checkout.`; render(); }
   }
 
@@ -115,9 +138,9 @@
 
   function wire(root, products, fabrics) {
     root.querySelector(`[data-close]`)?.addEventListener(`click`, closeTool);
-    root.querySelectorAll(`[data-product]`).forEach((element) => element.addEventListener(`click`, () => { state.product = products.find((product) => product.$id === element.dataset.product); renderPreservingScroll(); }));
+    root.querySelectorAll(`[data-product]`).forEach((element) => element.addEventListener(`click`, () => { state.product = products.find((product) => product.$id === element.dataset.product); state.checkoutRequestId = null; renderPreservingScroll(); }));
     root.querySelectorAll(`[data-show-product]`).forEach((element) => element.addEventListener(`click`, (event) => { event.stopPropagation(); state.product = products.find((product) => product.$id === element.dataset.showProduct); state.productDetail = true; render(); }));
-    root.querySelectorAll(`[data-fabric]`).forEach((element) => element.addEventListener(`click`, () => { state.fabric = fabrics.find((fabric) => fabric.$id === element.dataset.fabric); renderPreservingScroll(); }));
+    root.querySelectorAll(`[data-fabric]`).forEach((element) => element.addEventListener(`click`, () => { state.fabric = fabrics.find((fabric) => fabric.$id === element.dataset.fabric); state.checkoutRequestId = null; renderPreservingScroll(); }));
     root.querySelectorAll(`[data-next]`).forEach((element) => element.addEventListener(`click`, () => { state.step = Number(element.dataset.next); state.productDetail = false; state.error = ``; render(); }));
     root.querySelectorAll(`[data-prev]`).forEach((element) => element.addEventListener(`click`, () => { state.step = Number(element.dataset.prev); state.productDetail = false; state.error = ``; render(); }));
     root.querySelector(`[data-back-products]`)?.addEventListener(`click`, () => { state.productDetail = false; render(); });

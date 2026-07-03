@@ -23,8 +23,8 @@ async function ensureDatabase() { try { await db.get(databaseId); } catch (error
 async function stringAttr(collectionId, key, size = 1024, required = false) { await exists(db.createStringAttribute(databaseId, collectionId, key, size, required)); }
 async function boolAttr(collectionId, key, fallback = true) { await exists(db.createBooleanAttribute(databaseId, collectionId, key, false, fallback)); }
 async function intAttr(collectionId, key, fallback = 0) { await exists(db.createIntegerAttribute(databaseId, collectionId, key, false, undefined, undefined, fallback)); }
-async function makeCollection(id, name) { await exists(db.createCollection(databaseId, id, name, [Permission.read(Role.any())], false, true)); }
-async function ensureBucket() { try { await storage.getBucket(bucketId); } catch (error) { if (error.code === 404) await storage.createBucket(bucketId, `Catalog Images`, [Permission.read(Role.any()), Permission.create(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())], false, true, 20000000, [`jpg`, `jpeg`, `png`, `webp`]); else throw error; } }
+async function makeCollection(id, name) { await exists(db.createCollection(databaseId, id, name, [], false, true)); await db.updateCollection(databaseId, id, name, [], false, true); }
+async function ensureBucket() { const permissions = [Permission.read(Role.any())]; try { await storage.getBucket(bucketId); await storage.updateBucket(bucketId, `Catalog Images`, permissions, false, true, 20000000, [`jpg`, `jpeg`, `png`, `webp`]); } catch (error) { if (error.code === 404) await storage.createBucket(bucketId, `Catalog Images`, permissions, false, true, 20000000, [`jpg`, `jpeg`, `png`, `webp`]); else throw error; } }
 async function waitForAttribute(collectionId, key) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
