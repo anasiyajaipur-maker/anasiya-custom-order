@@ -1,5 +1,5 @@
 (function () {
-  const CONFIG = { endpoint: `https://sgp.cloud.appwrite.io/v1`, projectId: `6a454ec900060f12e3ec`, functionId: `anasiya-api`, bucketId: `catalog-images` };
+  const CONFIG = { endpoint: `https://sgp.cloud.appwrite.io/v1`, projectId: `6a454ec900060f12e3ec`, functionId: `anasiya-api`, bucketId: `catalog-images`, proxySubpath: `anasiya-custom-order` };
   const FALLBACK_SIZES = [`XS`, `S`, `M`, `L`, `XL`, `XXL`];
   const SIZE_CHART = [
     { size: `XS`, bust: `32`, waist: `26`, hip: `36` },
@@ -14,7 +14,30 @@
   const money = (value, currency = `INR`) => new Intl.NumberFormat(`en-IN`, { style: `currency`, currency, maximumFractionDigits: 0 }).format(Number(value || 0));
   const imageUrl = (id) => id ? `${CONFIG.endpoint}/storage/buckets/${CONFIG.bucketId}/files/${id}/view?project=${CONFIG.projectId}` : ``;
 
+  function proxyBase() {
+    const configured = document.querySelector(`script[data-anasiya-custom-order-script]`)?.dataset?.anasiyaProxy;
+    if (configured) return configured.replace(/\/$/, ``);
+    if (!window.Shopify?.routes?.root) return ``;
+    return `${window.Shopify.routes.root}apps/${CONFIG.proxySubpath}`.replace(/\/{2,}/g, `/`).replace(`:/`, `://`);
+  }
+
   async function api(path, method = `GET`, payload = {}) {
+    const proxy = proxyBase();
+    if (proxy) {
+      try {
+        const response = await fetch(`${proxy}${path}`, {
+          method,
+          headers: { [`Content-Type`]: `application/json`, Accept: `application/json` },
+          body: method === `GET` ? undefined : JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.error) throw new Error(data.error || `Something went wrong. Please try again.`);
+        return data;
+      } catch (error) {
+        if (String(error.message || ``).includes(`fetch`)) throw new Error(`Could not reach the custom order service. Check the Shopify app proxy setup.`);
+        throw error;
+      }
+    }
     const response = await fetch(`${CONFIG.endpoint}/functions/${CONFIG.functionId}/executions`, {
       method: `POST`,
       headers: { [`Content-Type`]: `application/json`, [`X-Appwrite-Project`]: CONFIG.projectId },

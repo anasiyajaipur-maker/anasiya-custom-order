@@ -44,8 +44,30 @@ The ready-made theme section is in `shopify/anasiya-custom-order-section.liquid`
 For an existing theme button, add `data-anasiya-custom-order` to the button and load:
 
 ```html
-<script src="https://anasiya-custom-order.appwrite.network/embed.js" defer></script>
+<script src="https://anasiya-custom-order.appwrite.network/embed.js" defer data-anasiya-proxy="/apps/anasiya-custom-order"></script>
 ```
+
+## Shopify app proxy (required for storefront API calls)
+
+Shopify blocks direct browser requests from your store to Appwrite. Configure an app proxy so catalog and checkout calls go through your own domain.
+
+1. In the Shopify Dev Dashboard, open your custom app for the store.
+2. Go to **Configuration** > **App proxy**.
+3. Set:
+   - **Subpath prefix:** `apps`
+   - **Subpath:** `anasiya-custom-order`
+   - **Proxy URL:** your Appwrite Function domain from Appwrite Console > Functions > `anasiya-api` > Settings > Domains (for example `https://YOUR-ID.sgp.appwrite.run`)
+4. Save and install or update the app on the store.
+
+The storefront will call same-origin URLs like `/apps/anasiya-custom-order/catalog`. Shopify forwards those to your Appwrite Function.
+
+Quick test in the browser on your store:
+
+```text
+https://anasiya.com/apps/anasiya-custom-order/catalog
+```
+
+You should see JSON with products and fabrics. If that works, the custom order tool can load styles on the storefront.
 
 ## Shopify paid-order sync
 

@@ -15,7 +15,13 @@ function makeClient(req) {
     .setKey(req?.headers?.[`x-appwrite-key`] || req?.headers?.[`X-Appwrite-Key`] || process.env.APPWRITE_FUNCTION_API_KEY || process.env.APPWRITE_API_KEY || ``);
 }
 
-function ok(res, data, status = 200) { return res.json(data, status); }
+function ok(res, data, status = 200) {
+  return res.json(data, status, {
+    'Access-Control-Allow-Origin': `*`,
+    'Access-Control-Allow-Methods': `GET, POST, PUT, DELETE, OPTIONS`,
+    'Access-Control-Allow-Headers': `Content-Type, Authorization, x-appwrite-user-jwt, x-admin-jwt`
+  });
+}
 function body(req) { try { return req.bodyJson || JSON.parse(req.bodyText || `{}`); } catch { return {}; } }
 function parseDetails(value) { try { const details = JSON.parse(value || `[]`); return Array.isArray(details) ? details : []; } catch { return []; } }
 function pack(doc, settings = {}) { return { ...doc, details: parseDetails(doc.detailsJson), shopifyVariantId: settings[variantSettingId(doc.$id)] || settings.customVariantId || `` }; }
@@ -107,7 +113,12 @@ async function createCheckoutIntent(db, data) {
 }
 
 export default async ({ req, res }) => {
-  if (req.method === `OPTIONS`) return ok(res, {});
+  const cors = {
+    'Access-Control-Allow-Origin': `*`,
+    'Access-Control-Allow-Methods': `GET, POST, PUT, DELETE, OPTIONS`,
+    'Access-Control-Allow-Headers': `Content-Type, Authorization, x-appwrite-user-jwt, x-admin-jwt`
+  };
+  if (req.method === `OPTIONS`) return res.send(``, 204, cors);
   const db = new Databases(makeClient(req));
   const requestPath = req.path || `/`;
   try {
