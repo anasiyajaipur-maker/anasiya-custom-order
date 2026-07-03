@@ -100,15 +100,21 @@ async function createCheckoutIntent(db, data) {
   try { await db.createDocument(databaseId, collection.orders, intentId, intent); }
   catch (error) { if (error.code !== 409) throw error; }
 
-  const properties = { Style: product.name, Print: fabric.name, Size: size, _AnasiyaOrderId: intentId };
+  const properties = { Style: product.name, Print: fabric.name, Size: size, _AnasiyaOrderId: intentId, _AnasiyaCustomOrder: `true` };
   const encodedProperties = Buffer.from(JSON.stringify(properties), `utf8`).toString(`base64url`);
   const shopDomain = cleanDomain(settings.shopDomain);
+  const checkoutQuery = new URLSearchParams({
+    [`attributes[_anasiya_checkout]`]: `shopify_prepaid`,
+    [`attributes[_AnasiyaCustomOrder]`]: `true`,
+    properties: encodedProperties
+  });
   return {
     orderId: intentId,
     variantId,
     properties,
+    cartAttributes: { _anasiya_checkout: `shopify_prepaid`, _AnasiyaCustomOrder: `true` },
     shopDomain,
-    checkoutUrl: `https://${shopDomain}/cart/${variantId}:1?properties=${encodedProperties}`
+    checkoutUrl: `https://${shopDomain}/cart/${variantId}:1?${checkoutQuery.toString()}`
   };
 }
 

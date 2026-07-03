@@ -1,0 +1,18 @@
+api_version = "2024-10"
+
+[[extensions]]
+name = "Anasiya custom order prepaid only"
+handle = "anasiya-custom-order-prepaid"
+type = "function"
+uid = "anasiya-custom-order-prepaid"
+description = "Hide COD and manual payment methods when the cart contains a custom order."
+
+  [[extensions.targeting]]
+  target = "purchase.payment-customization.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = "npm run build"
+  path = "dist/function.wasm"
+  watch = ["src/**/*.js"]

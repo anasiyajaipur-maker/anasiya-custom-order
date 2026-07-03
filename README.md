@@ -87,3 +87,7 @@ Set the custom app client secret as the Appwrite Function variable `SHOPIFY_WEBH
 4. Customer continues through normal Shopify checkout.
 5. Shopify creates the regular order and sends its regular notifications.
 6. The signed paid-order webhook updates the matching order in the Anasiya admin.
+
+## Custom order checkout (prepaid only)
+
+Regular store orders can keep Shiprocket Checkout. Custom orders from this tool use Shopify native checkout with prepaid only. See `shopify/PREPAID-CHECKOUT.md` for Shiprocket exclusion, payment customization, and testing.

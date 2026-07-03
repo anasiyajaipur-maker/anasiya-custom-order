@@ -15,10 +15,18 @@
   const imageUrl = (id) => id ? `${CONFIG.endpoint}/storage/buckets/${CONFIG.bucketId}/files/${id}/view?project=${CONFIG.projectId}` : ``;
 
   function proxyBase() {
-    const configured = document.querySelector(`script[data-anasiya-custom-order-script]`)?.dataset?.anasiyaProxy;
+    const script = document.querySelector(`script[data-anasiya-custom-order-script]`) || document.currentScript;
+    const configured = script?.dataset?.anasiyaProxy;
     if (configured) return configured.replace(/\/$/, ``);
-    if (!window.Shopify?.routes?.root) return ``;
-    return `${window.Shopify.routes.root}apps/${CONFIG.proxySubpath}`.replace(/\/{2,}/g, `/`).replace(`:/`, `://`);
+    const root = window.Shopify?.routes?.root;
+    if (root) return `${root}apps/${CONFIG.proxySubpath}`.replace(/\/{2,}/g, `/`).replace(`:/`, `://`);
+    if (window.Shopify) return `/apps/${CONFIG.proxySubpath}`;
+    return ``;
+  }
+
+  function proxyError(status) {
+    if (status === 404) return `The custom order API was not found. Configure the Shopify app proxy for /apps/${CONFIG.proxySubpath}.`;
+    return `Something went wrong. Please try again.`;
   }
 
   async function api(path, method = `GET`, payload = {}) {
@@ -31,22 +39,27 @@
           body: method === `GET` ? undefined : JSON.stringify(payload)
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.error) throw new Error(data.error || `Something went wrong. Please try again.`);
+        if (!response.ok || data.error) throw new Error(data.error || proxyError(response.status));
         return data;
       } catch (error) {
         if (String(error.message || ``).includes(`fetch`)) throw new Error(`Could not reach the custom order service. Check the Shopify app proxy setup.`);
         throw error;
       }
     }
-    const response = await fetch(`${CONFIG.endpoint}/functions/${CONFIG.functionId}/executions`, {
-      method: `POST`,
-      headers: { [`Content-Type`]: `application/json`, [`X-Appwrite-Project`]: CONFIG.projectId },
-      body: JSON.stringify({ async: false, path, method, body: method === `GET` ? `` : JSON.stringify(payload), headers: { [`content-type`]: `application/json` } })
-    });
-    const run = await response.json();
-    const data = JSON.parse(run.responseBody || run.response || `{}`);
-    if (!response.ok || run.status !== `completed` || data.error) throw new Error(data.error || `Something went wrong. Please try again.`);
-    return data;
+    try {
+      const response = await fetch(`${CONFIG.endpoint}/functions/${CONFIG.functionId}/executions`, {
+        method: `POST`,
+        headers: { [`Content-Type`]: `application/json`, [`X-Appwrite-Project`]: CONFIG.projectId },
+        body: JSON.stringify({ async: false, path, method, body: method === `GET` ? `` : JSON.stringify(payload), headers: { [`content-type`]: `application/json` } })
+      });
+      const run = await response.json();
+      const data = JSON.parse(run.responseBody || run.response || `{}`);
+      if (!response.ok || run.status !== `completed` || data.error) throw new Error(data.error || `Something went wrong. Please try again.`);
+      return data;
+    } catch (error) {
+      if (String(error.message || ``).includes(`fetch`)) throw new Error(`Could not reach the custom order service. On Shopify, configure the app proxy for /apps/${CONFIG.proxySubpath}.`);
+      throw error;
+    }
   }
 
   function ensureRoot() {
@@ -149,7 +162,7 @@
   }
 
   function reviewStepBody(currency, settings) {
-    return `<div class="aco-review"><div class="aco-panel aco-summary-panel"><h3>Your selections</h3><div class="aco-review-selections"><div class="aco-review-choice"><div class="aco-review-thumb">${image(state.product?.image1Id, state.product?.name)}</div><div class="aco-review-choice-copy"><span>Selected product</span><strong>${esc(state.product?.name)}</strong></div></div><div class="aco-review-choice"><div class="aco-review-thumb">${image(state.fabric?.imageId, state.fabric?.name)}</div><div class="aco-review-choice-copy"><span>Selected print</span><strong>${esc(state.fabric?.name)}</strong></div></div></div><div class="aco-review-size"><span>Selected size</span><strong>${esc(state.size)}</strong></div><div class="aco-order-total"><span>Order total</span><strong>${money(state.product?.price, currency)}</strong></div><p class="aco-made-note">Made especially for you with your selected style, print, and size.</p></div><div class="aco-panel aco-policy"><h3>Before you continue</h3><p>${esc(settings.policyText || `Custom orders are prepared specially for you. Delivery and fabric placement may vary slightly.`)}</p><div class="aco-trust"><span>Secure Shopify checkout</span><span>Order confirmation by email</span><span>Your selections are included with the order</span></div></div></div>${state.error ? `<div class="aco-empty aco-error">${esc(state.error)}</div>` : ``}`;
+    return `<div class="aco-review"><div class="aco-panel aco-summary-panel"><h3>Your selections</h3><div class="aco-review-selections"><div class="aco-review-choice"><div class="aco-review-thumb">${image(state.product?.image1Id, state.product?.name)}</div><div class="aco-review-choice-copy"><span>Selected product</span><strong>${esc(state.product?.name)}</strong></div></div><div class="aco-review-choice"><div class="aco-review-thumb">${image(state.fabric?.imageId, state.fabric?.name)}</div><div class="aco-review-choice-copy"><span>Selected print</span><strong>${esc(state.fabric?.name)}</strong></div></div></div><div class="aco-review-size"><span>Selected size</span><strong>${esc(state.size)}</strong></div><div class="aco-order-total"><span>Order total</span><strong>${money(state.product?.price, currency)}</strong></div><p class="aco-made-note">Made especially for you with your selected style, print, and size.</p></div><div class="aco-panel aco-policy"><h3>Before you continue</h3><p>${esc(settings.policyText || `Custom orders are prepared specially for you. Delivery and fabric placement may vary slightly.`)}</p><div class="aco-trust"><span>Secure Shopify checkout</span><span>Prepaid payment only</span><span>Order confirmation by email</span><span>Your selections are included with the order</span></div></div></div>${state.error ? `<div class="aco-empty aco-error">${esc(state.error)}</div>` : ``}`;
   }
 
   function reviewStepFooter() {
@@ -164,10 +177,12 @@
 
   async function continueToShopify(result) {
     const root = window.Shopify?.routes?.root || `/`;
+    const cartAttributes = result.cartAttributes || { _anasiya_checkout: `shopify_prepaid`, _AnasiyaCustomOrder: `true` };
     if (!window.Shopify || !sameShopHost(result.shopDomain)) {
       window.location.assign(result.checkoutUrl);
       return;
     }
+    await fetch(`${root}cart/clear.js`, { method: `POST`, headers: { Accept: `application/json` } });
     const response = await fetch(`${root}cart/add.js`, {
       method: `POST`,
       headers: { [`Content-Type`]: `application/json`, Accept: `application/json` },
@@ -175,6 +190,11 @@
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.description || data.message || `This style could not be added to Shopify checkout.`);
+    await fetch(`${root}cart/update.js`, {
+      method: `POST`,
+      headers: { [`Content-Type`]: `application/json`, Accept: `application/json` },
+      body: JSON.stringify({ attributes: cartAttributes })
+    });
     window.location.assign(`${root}checkout`);
   }
 

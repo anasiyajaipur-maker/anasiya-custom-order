@@ -1,0 +1,22 @@
+query RunInput {
+  cart {
+    lines {
+      attribute(key: "_AnasiyaOrderId") {
+        key
+        value
+      }
+      attributeCustom: attribute(key: "_AnasiyaCustomOrder") {
+        key
+        value
+      }
+    }
+    attribute(key: "_anasiya_checkout") {
+      key
+      value
+    }
+  }
+  paymentMethods {
+    id
+    name
+  }
+}

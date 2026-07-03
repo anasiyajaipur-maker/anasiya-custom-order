@@ -1,0 +1,8 @@
+{
+  "name": "anasiya-custom-order-prepaid",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "shopify app function build"
+  }
+}
