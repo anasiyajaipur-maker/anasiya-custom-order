@@ -6,7 +6,7 @@ const databaseId = process.env.APPWRITE_DATABASE_ID || `anasiya_custom_order`;
 const bucketId = process.env.APPWRITE_BUCKET_ID || `catalog-images`;
 const collection = { products: `products`, fabrics: `fabrics`, orders: `orders`, settings: `settings` };
 const adminEmail = process.env.ADMIN_EMAIL || ``;
-const sizeOptions = [`XS`, `S`, `M`, `L`, `XL`, `XXL`, `Custom size`];
+const sizeOptions = [`XS`, `S`, `M`, `L`, `XL`, `XXL`];
 
 function makeClient(req) {
   return new Client()
