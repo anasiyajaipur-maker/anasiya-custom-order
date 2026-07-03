@@ -6,6 +6,7 @@ const databaseId = process.env.APPWRITE_DATABASE_ID || `anasiya_custom_order`;
 const bucketId = process.env.APPWRITE_BUCKET_ID || `catalog-images`;
 const collection = { products: `products`, fabrics: `fabrics`, orders: `orders`, settings: `settings` };
 const adminEmail = process.env.ADMIN_EMAIL || ``;
+const sizeOptions = [`XS`, `S`, `M`, `L`, `XL`, `XXL`, `Custom size`];
 
 function makeClient(req) {
   return new Client()
@@ -74,6 +75,8 @@ async function createCheckoutIntent(db, data) {
     getSettings(db)
   ]);
   if (!product.active || !fabric.active) throw new Error(`That selection is no longer available. Please choose again.`);
+  const size = String(data.size || ``).trim();
+  if (!sizeOptions.includes(size)) throw new Error(`Please select a valid size.`);
   const variantId = String(settings[variantSettingId(product.$id)] || settings.customVariantId || ``).trim();
   if (!/^\d+$/.test(variantId)) throw new Error(`This style is not connected to a Shopify variant yet.`);
 
@@ -83,6 +86,7 @@ async function createCheckoutIntent(db, data) {
     fabricId: fabric.$id,
     productName: product.name,
     fabricName: fabric.name,
+    size,
     price: Number(product.price || 0),
     status: `checkout_pending`,
     createdAt: new Date().toISOString()
@@ -90,7 +94,7 @@ async function createCheckoutIntent(db, data) {
   try { await db.createDocument(databaseId, collection.orders, intentId, intent); }
   catch (error) { if (error.code !== 409) throw error; }
 
-  const properties = { Style: product.name, Print: fabric.name, _AnasiyaOrderId: intentId };
+  const properties = { Style: product.name, Print: fabric.name, Size: size, _AnasiyaOrderId: intentId };
   const encodedProperties = Buffer.from(JSON.stringify(properties), `utf8`).toString(`base64url`);
   const shopDomain = cleanDomain(settings.shopDomain);
   return {
@@ -126,7 +130,7 @@ export default async ({ req, res }) => {
       return ok(res, {
         products: products.documents.map((doc) => pack(doc, settings)),
         fabrics: fabrics.documents,
-        settings: { currency: settings.currency || `INR`, shopDomain: cleanDomain(settings.shopDomain), customVariantId: settings.customVariantId || ``, policyText: settings.policyText || `` }
+        settings: { currency: settings.currency || `INR`, shopDomain: cleanDomain(settings.shopDomain), customVariantId: settings.customVariantId || ``, policyText: settings.policyText || ``, sizeNote: settings.sizeNote || ``, sizeOptions }
       });
     }
 
@@ -197,7 +201,7 @@ export default async ({ req, res }) => {
 
     if (requestPath === `/admin/settings` && req.method === `PUT`) {
       const data = body(req);
-      for (const key of [`currency`, `shopDomain`, `customVariantId`, `policyText`]) {
+      for (const key of [`currency`, `shopDomain`, `customVariantId`, `policyText`, `sizeNote`]) {
         if (Object.hasOwn(data, key)) await upsertSetting(db, key, key === `shopDomain` ? cleanDomain(data[key]) : data[key]);
       }
       return ok(res, { ok: true });
