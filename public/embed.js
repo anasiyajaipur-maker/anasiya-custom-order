@@ -77,9 +77,18 @@
       document.head.appendChild(style);
     }
     document.addEventListener(`click`, (event) => {
-      const trigger = event.target.closest(`[data-anasiya-custom-order]`);
+      const trigger = event.target.closest(`[data-anasiya-custom-order]`) || event.target.closest(`a[href$="#custom-order"]`);
       if (trigger) { event.preventDefault(); openTool(); }
     });
+
+    function checkHash() {
+      if (window.location.hash === `#custom-order`) {
+        openTool();
+        try { history.replaceState("", document.title, window.location.pathname + window.location.search); } catch(e) {}
+      }
+    }
+    window.addEventListener(`hashchange`, checkHash);
+    checkHash();
   }
 
   async function openTool() {
