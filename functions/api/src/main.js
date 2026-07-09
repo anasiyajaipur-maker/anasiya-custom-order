@@ -8,6 +8,96 @@ const collection = { products: `products`, fabrics: `fabrics`, orders: `orders`,
 const adminEmail = process.env.ADMIN_EMAIL || ``;
 const sizeOptions = [`XS`, `S`, `M`, `L`, `XL`, `XXL`];
 
+// Anasiya OS Firebase integration — push paid custom orders directly to Firestore
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || `anasiya-6ccdb`;
+const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN || ``;
+const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN || ``;
+
+async function fetchShopifyCustomer(shopifyOrderId) {
+  if (!SHOPIFY_STORE_DOMAIN || !SHOPIFY_ADMIN_TOKEN || !shopifyOrderId) return null;
+  try {
+    let domain = SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//i, ``).replace(/\/.*$/, ``).toLowerCase();
+    if (!domain.includes(`.myshopify.`)) domain = domain.split(`-`)[0] + `.myshopify.com`;
+    const url = `https://${domain}/admin/api/2024-04/orders/${shopifyOrderId}.json?fields=customer,shipping_address`;
+    const res = await fetch(url, {
+      headers: { 'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN, 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const order = data.order || {};
+    const firstName = order.customer?.first_name || ``;
+    const lastName = order.customer?.last_name || ``;
+    const customerName = [firstName, lastName].filter(Boolean).join(` `) || `Custom Order Customer`;
+    const customerPhone = order.customer?.phone || order.shipping_address?.phone || `Not provided`;
+    const shippingAddress = order.shipping_address
+      ? [order.shipping_address.address1, order.shipping_address.address2, order.shipping_address.city, order.shipping_address.province, order.shipping_address.zip].filter(Boolean).join(`, `)
+      : `Not provided`;
+    return { customerName, customerPhone, shippingAddress };
+  } catch { return null; }
+}
+
+async function pushToFirebase(appwriteOrder, shopifyPayload) {
+  try {
+    // Extract Shopify order ID from the webhook payload
+    const shopifyOrderId = shopifyPayload?.id || ``;
+    const shopifyOrderNumber = shopifyPayload?.order_number ? `SH-${shopifyPayload.order_number}` : `CO-${appwriteOrder.$id}`;
+
+    // Fetch customer details from Shopify Admin API
+    const customerData = await fetchShopifyCustomer(shopifyOrderId);
+    const customerName = customerData?.customerName || `Custom Order Customer`;
+    const customerPhone = customerData?.customerPhone || `Check Shopify #${shopifyPayload?.order_number || shopifyOrderId}`;
+    const shippingAddress = customerData?.shippingAddress || `Not provided`;
+
+    const docId = appwriteOrder.$id;
+    const deliveryDueDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split(`T`)[0] + `T18:00:00Z`;
+
+    const firestoreDoc = {
+      fields: {
+        orderId:         { stringValue: shopifyOrderNumber },
+        customerName:    { stringValue: customerName },
+        customerPhone:   { stringValue: customerPhone },
+        shippingAddress: { stringValue: shippingAddress },
+        orderDate:       { stringValue: appwriteOrder.createdAt || new Date().toISOString() },
+        deliveryDueDate: { stringValue: deliveryDueDate },
+        totalAmount:     { stringValue: String(appwriteOrder.price || 0) },
+        status:          { stringValue: `received` },
+        isCustomOrder:   { booleanValue: true },
+        customSource:    { stringValue: `appwrite-tool` },
+        appwriteOrderId: { stringValue: appwriteOrder.$id },
+        shopifyOrderId:  { stringValue: String(shopifyOrderId) },
+        lineItems:       { arrayValue: { values: [{
+          mapValue: { fields: {
+            title:     { stringValue: appwriteOrder.productName || `Custom Kurti` },
+            quantity:  { integerValue: `1` },
+            sku:       { stringValue: `` },
+            size:      { stringValue: appwriteOrder.size || `M` },
+            price:     { stringValue: String(appwriteOrder.price || 0) },
+            imageUrl:  { stringValue: `` },
+            fabricName:{ stringValue: appwriteOrder.fabricName || `` }
+          }}
+        }]}},
+        createdAt: { integerValue: String(Date.now()) },
+        updatedAt: { integerValue: String(Date.now()) }
+      }
+    };
+
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/shopify_orders/${docId}`;
+    const fbRes = await fetch(url, {
+      method: `PATCH`,
+      headers: { 'Content-Type': `application/json` },
+      body: JSON.stringify(firestoreDoc)
+    });
+    if (!fbRes.ok) {
+      const errText = await fbRes.text();
+      console.warn(`Firebase push failed (${fbRes.status}):`, errText);
+    } else {
+      console.log(`Pushed custom order ${docId} to Anasiya OS Firestore.`);
+    }
+  } catch (err) {
+    console.warn(`pushToFirebase error (non-fatal):`, err.message);
+  }
+}
+
 function makeClient(req) {
   return new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || `https://sgp.cloud.appwrite.io/v1`)
@@ -130,12 +220,32 @@ export default async ({ req, res }) => {
   try {
     if (requestPath === `/webhooks/shopify/orders-paid` && req.method === `POST`) {
       if (!webhookIsValid(req)) return ok(res, { error: `Invalid Shopify webhook signature.` }, 401);
-      const intentId = orderIntentId(body(req));
+      const shopifyPayload = body(req);
+      const intentId = orderIntentId(shopifyPayload);
       if (intentId) {
-        try { await db.updateDocument(databaseId, collection.orders, intentId, { status: `paid` }); }
-        catch (error) { if (error.code !== 404) throw error; }
+        try {
+          await db.updateDocument(databaseId, collection.orders, intentId, { status: `paid`, osPulled: false });
+          // Fetch the full order document so we have productName, fabricName, size, price
+          const appwriteOrder = await db.getDocument(databaseId, collection.orders, intentId);
+          // Push directly to Anasiya OS Firestore (non-blocking — errors are warned, not thrown)
+          pushToFirebase(appwriteOrder, shopifyPayload);
+        } catch (error) { if (error.code !== 404) throw error; }
       }
       return ok(res, { ok: true });
+    }
+
+    if (requestPath === `/admin/orders/paid` && req.method === `GET`) {
+      await requireAdmin(req);
+      const orders = await db.listDocuments(databaseId, collection.orders, [
+        Query.equal(`status`, `paid`),
+        Query.orderDesc(`createdAt`)
+      ]);
+      // Mark all returned orders as osPulled so repeat syncs skip them
+      await Promise.all(orders.documents
+        .filter(o => !o.osPulled)
+        .map(o => db.updateDocument(databaseId, collection.orders, o.$id, { osPulled: true })
+          .catch(() => {})));
+      return ok(res, { orders: orders.documents });
     }
 
     if (requestPath === `/catalog` && req.method === `GET`) {
