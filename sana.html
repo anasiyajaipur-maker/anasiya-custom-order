@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anasiya Custom Order - Welcome Dr. Sana Nomani</title>
+  <link rel="stylesheet" href="/src/styles.css">
+  <style>
+    body {
+      background-color: #fbf7fc;
+      background-image: url("https://anasiya-custom-order.appwrite.network/anasiya-floral-background.png");
+      background-size: 800px auto;
+      background-repeat: repeat;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      margin: 0;
+      font-family: "Nunito Sans", Arial, sans-serif;
+      overflow-x: hidden;
+    }
+    #tulips-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+    }
+    .sana-card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(158, 106, 174, 0.2);
+      border-radius: 16px;
+      padding: 48px 32px;
+      max-width: 540px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(96, 56, 108, 0.12);
+      position: relative;
+      z-index: 10;
+      animation: fadeIn 1s ease-out;
+    }
+    .sana-logo {
+      height: 48px;
+      width: auto;
+      margin-bottom: 24px;
+      object-fit: contain;
+    }
+    .sana-card h1 {
+      font-family: Georgia, serif;
+      font-size: 32px;
+      color: #52345c;
+      margin: 0 0 16px;
+    }
+    .sana-card p {
+      font-size: 16px;
+      color: #6d6271;
+      line-height: 1.6;
+      margin: 0 0 32px;
+    }
+    .sana-btn {
+      background: #6f467c;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 16px 36px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(96, 56, 108, 0.25);
+      transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+    .sana-btn:hover {
+      background: #52345c;
+      transform: translateY(-2px);
+      box-shadow: 0 14px 36px rgba(96, 56, 108, 0.35);
+    }
+    .sana-btn:active {
+      transform: translateY(0);
+    }
+    .thankyou-overlay {
+      position: fixed;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-150px);
+      background: rgba(255, 255, 255, 0.96);
+      border-left: 4px solid #9e6aae;
+      border-radius: 8px;
+      padding: 16px 28px;
+      box-shadow: 0 15px 35px rgba(96, 56, 108, 0.12);
+      z-index: 2147483001;
+      transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .thankyou-overlay.is-visible {
+      transform: translateX(-50%) translateY(0);
+    }
+    .thankyou-overlay span {
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #52345c;
+      font-weight: 500;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media(max-width: 480px) {
+      .sana-card {
+        padding: 36px 20px;
+      }
+      .sana-card h1 {
+        font-size: 26px;
+      }
+      .sana-card p {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="tulips-canvas"></canvas>
+
+  <div class="thankyou-overlay" id="thankyou-msg">
+    <span>🌷 Thank you, Dr. Sana Nomani! 🌷</span>
+  </div>
+
+  <div class="sana-card">
+    <img src="https://anasiya-custom-order.appwrite.network/anasiya-logo.png" alt="Anasiya" class="sana-logo">
+    <h1>Special Preview</h1>
+    <p>We invite you to launch and experience the custom ordering flow designed for Anasiya Jaipur.</p>
+    <button class="sana-btn" id="launch-btn">Launch Experience</button>
+  </div>
+
+  <script src="/embed.js"></script>
+  <script>
+    const canvas = document.getElementById('tulips-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let animationActive = false;
+    let particles = [];
+    const emojis = ['🌷', '🌸', '✨', '🌷', '💖']; // primarily tulips, with blossoms, sparkles & love!
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * -canvas.height - 20;
+        this.emoji = emojis[Math.floor(Math.random() * emojis.length)];
+        this.size = Math.random() * 14 + 18; // size 18 to 32
+        this.speedY = Math.random() * 1.5 + 1.2;
+        this.speedX = Math.random() * 0.8 - 0.4;
+        this.angle = Math.random() * Math.PI * 2;
+        this.spin = Math.random() * 0.015 - 0.0075;
+        this.swaySpeed = Math.random() * 0.015 + 0.005;
+        this.swayOffset = Math.random() * Math.PI * 2;
+      }
+
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX + Math.sin(this.swayOffset + this.y * this.swaySpeed) * 0.4;
+        this.angle += this.spin;
+        if (this.y > canvas.height + 40) {
+          this.y = -40;
+          this.x = Math.random() * canvas.width;
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.font = `${this.size}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.emoji, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function initParticles() {
+      particles = [];
+      const particleCount = Math.min(80, Math.floor((canvas.width * canvas.height) / 12000));
+      for (let i = 0; i < particleCount; i++) {
+        particles.push(new Particle());
+      }
+    }
+
+    function animate() {
+      if (!animationActive) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animate);
+    }
+
+    document.getElementById('launch-btn').addEventListener('click', () => {
+      // 1. Show the Canvas
+      canvas.style.display = 'block';
+
+      // 2. Open the custom order tool modal
+      if (window.AnasiyaCustomOrder) {
+        window.AnasiyaCustomOrder.open();
+      }
+
+      // 3. Show the "Thank you, Dr. Sana Nomani!" banner
+      const banner = document.getElementById('thankyou-msg');
+      banner.classList.add('is-visible');
+
+      // 4. Start the tulip showering animation
+      if (!animationActive) {
+        animationActive = true;
+        initParticles();
+        animate();
+      }
+
+      // Hide the greeting card content so only the modal and showering effect remain
+      document.querySelector('.sana-card').style.display = 'none';
+    });
+  </script>
+</body>
+</html>
