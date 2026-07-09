@@ -217,6 +217,9 @@
       // 3. Show the "Thank you, Dr. Sana Nomani!" banner
       const banner = document.getElementById('thankyou-msg');
       banner.classList.add('is-visible');
+      setTimeout(() => {
+        banner.classList.remove('is-visible');
+      }, 5000);
 
       // 4. Start the tulip showering animation
       if (!animationActive) {
