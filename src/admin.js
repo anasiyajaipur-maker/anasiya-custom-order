@@ -4,7 +4,7 @@ const { Account, Client, Functions } = sdk;
 const client = new Client().setEndpoint(config.endpoint).setProject(config.projectId);
 const account = new Account(client);
 const functions = new Functions(client);
-const state = { catalog: { products: [], fabrics: [], settings: {} }, orders: [], shopify: {} };
+const state = { catalog: { products: [], fabrics: [], settings: {} }, orders: [], shopify: {}, editingProductId: null };
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (v) => String(v || ``).replace(/[&<>"']/g, (c) => ({ [`&`]: `&amp;`, [`<`]: `&lt;`, [`>`]: `&gt;`, [`"`]: `&quot;`, [`'`]: `&#39;` }[c]));
@@ -60,8 +60,12 @@ function tab(name) { $$(`.tab`).forEach((el) => el.classList.toggle(`is-active`,
 function detail(value = ``) { const row = document.createElement(`div`); row.className = `detail-row`; row.innerHTML = `<input name=details[] placeholder=Product-detail value=${esc(value)}><button class=icon-action type=button aria-label=Remove>x</button>`; row.querySelector(`button`).onclick = () => row.remove(); return row; }
 function ensureDetail() { if (!$(`#detail-fields`).children.length) $(`#detail-fields`).appendChild(detail()); }
 function renderProducts() {
-  $(`#products-list`).innerHTML = state.catalog.products.length ? state.catalog.products.map((p) => `<article class="admin-item"><div class="admin-thumb duo-thumb">${[p.image1Id,p.image2Id].filter(Boolean).map((id)=>`<img src="${img(id)}" alt="">`).join(``) || esc((p.name || `A`).slice(0,1))}</div><div class="admin-item-copy"><h3>${esc(p.name)}</h3><p class="admin-meta">${esc(state.catalog.settings.currency || `INR`)} ${Number(p.price || 0).toLocaleString(`en-IN`)}</p><div class="detail-pills">${(p.details || []).slice(0,3).map((d)=>`<span class="detail-pill">${esc(d)}</span>`).join(``)}</div><form class="shopify-link-form" data-shopify-product="${p.$id}"><label><span>Shopify variant</span><input name="shopifyVariantId" value="${esc(p.shopifyVariantId || ``)}" placeholder="ID or Shopify variant URL"></label><button class="ghost-action" type="submit">${p.shopifyVariantId ? `Update` : `Connect`}</button><small aria-live="polite"></small></form></div><button class="ghost-action remove-action" data-delete-product="${p.$id}" type="button">Remove</button></article>`).join(``) : `<div class="empty-card"><p>No products yet. Add your first style using the form.</p></div>`;
+  $(`#products-list`).innerHTML = state.catalog.products.length ? state.catalog.products.map((p) => `<article class="admin-item"><div class="admin-thumb duo-thumb">${[p.image1Id,p.image2Id].filter(Boolean).map((id)=>`<img src="${img(id)}" alt="">`).join(``) || esc((p.name || `A`).slice(0,1))}</div><div class="admin-item-copy"><h3>${esc(p.name)}</h3><p class="admin-meta">${esc(state.catalog.settings.currency || `INR`)} ${Number(p.price || 0).toLocaleString(`en-IN`)}</p><div class="detail-pills">${(p.details || []).slice(0,3).map((d)=>`<span class="detail-pill">${esc(d)}</span>`).join(``)}</div><form class="shopify-link-form" data-shopify-product="${p.$id}"><label><span>Shopify variant</span><input name="shopifyVariantId" value="${esc(p.shopifyVariantId || ``)}" placeholder="ID or Shopify variant URL"></label><button class="ghost-action" type="submit">${p.shopifyVariantId ? `Update` : `Connect`}</button><small aria-live="polite"></small></form></div><div class="admin-item-actions"><button class="ghost-action edit-action" data-edit-product="${p.$id}" type="button">Edit</button><button class="ghost-action remove-action" data-delete-product="${p.$id}" type="button">Remove</button></div></article>`).join(``) : `<div class="empty-card"><p>No products yet. Add your first style using the form.</p></div>`;
   $$(`[data-delete-product]`).forEach((b)=>b.onclick=async()=>{ await api(`/admin/products/${b.dataset.deleteProduct}`,`DELETE`); await loadCatalog(); });
+  $$(`[data-edit-product]`).forEach((b) => b.onclick = () => {
+    const product = state.catalog.products.find(p => p.$id === b.dataset.editProduct);
+    if (product) startEdit(product);
+  });
   $$(`[data-shopify-product]`).forEach((form) => form.onsubmit = async (event) => {
     event.preventDefault();
     const button = form.querySelector(`button`);
@@ -73,6 +77,45 @@ function renderProducts() {
       await loadCatalog();
     } catch (error) { message.textContent = error.message || `Could not connect`; button.disabled = false; }
   });
+}
+function startEdit(product) {
+  state.editingProductId = product.$id;
+  const form = $(`#product-form`);
+  form.querySelector(`h2`).textContent = `Edit product`;
+  form.querySelector(`button[type=submit]`).textContent = `Save changes`;
+  let cancelBtn = form.querySelector(`#cancel-edit-btn`);
+  if (!cancelBtn) {
+    cancelBtn = document.createElement(`button`);
+    cancelBtn.id = `cancel-edit-btn`;
+    cancelBtn.type = `button`;
+    cancelBtn.className = `ghost-action`;
+    cancelBtn.style.marginLeft = `10px`;
+    cancelBtn.textContent = `Cancel`;
+    cancelBtn.onclick = resetProductForm;
+    form.querySelector(`.form-footer`).appendChild(cancelBtn);
+  }
+  form.name.value = product.name || ``;
+  form.price.value = product.price || ``;
+  form.shopifyVariantId.value = product.shopifyVariantId || ``;
+  const fields = $(`#detail-fields`);
+  fields.innerHTML = ``;
+  if (product.details && product.details.length) {
+    product.details.forEach(d => fields.appendChild(detail(d)));
+  } else {
+    ensureDetail();
+  }
+  form.scrollIntoView({ behavior: `smooth` });
+}
+function resetProductForm() {
+  state.editingProductId = null;
+  const form = $(`#product-form`);
+  form.reset();
+  form.querySelector(`h2`).textContent = `Add product`;
+  form.querySelector(`button[type=submit]`).textContent = `Add product`;
+  const cancelBtn = form.querySelector(`#cancel-edit-btn`);
+  if (cancelBtn) cancelBtn.remove();
+  $(`#detail-fields`).innerHTML = ``;
+  ensureDetail();
 }
 function renderFabrics() {
   $(`#fabrics-list`).innerHTML = state.catalog.fabrics.length ? state.catalog.fabrics.map((f) => `<article class="admin-item"><div class="admin-thumb">${f.imageId ? `<img src="${img(f.imageId)}" alt="">` : esc((f.name || `A`).slice(0,1))}</div><div class="admin-item-copy"><h3>${esc(f.name)}</h3><p class="admin-meta">Visible in the customer print library</p></div><button class="ghost-action" data-delete-fabric="${f.$id}" type="button">Remove</button></article>`).join(``) : `<div class="empty-card"><p>No fabrics yet. Add your first print using the form.</p></div>`;
@@ -114,7 +157,7 @@ $$(`.tab`).forEach((b) => b.onclick = () => tab(b.dataset.tab));
 $(`#refresh-orders`).onclick = loadOrders;
 $(`#add-detail`).onclick = () => $(`#detail-fields`).appendChild(detail());
 ensureDetail();
-$(`#product-form`).onsubmit = async (e) => { e.preventDefault(); const form = e.currentTarget; await submit(form, $(`#product-message`), async () => { const f = new FormData(form); await api(`/admin/products`, `POST`, { name: f.get(`name`), price: Number(f.get(`price`) || 0), image1Id: await upload(f.get(`image1`)), image2Id: await upload(f.get(`image2`)), details: f.getAll(`details[]`).map((x)=>String(x).trim()).filter(Boolean), shopifyVariantId: f.get(`shopifyVariantId`) }); form.reset(); $(`#detail-fields`).innerHTML = ``; ensureDetail(); await loadCatalog(); }); };
+$(`#product-form`).onsubmit = async (e) => { e.preventDefault(); const form = e.currentTarget; await submit(form, $(`#product-message`), async () => { const f = new FormData(form); const image1File = f.get(`image1`); const image2File = f.get(`image2`); let image1Id = ``; if (image1File && image1File.size > 0) image1Id = await upload(image1File); let image2Id = ``; if (image2File && image2File.size > 0) image2Id = await upload(image2File); const details = f.getAll(`details[]`).map((x)=>String(x).trim()).filter(Boolean); const shopifyVariantId = f.get(`shopifyVariantId`); const name = f.get(`name`); const price = Number(f.get(`price`) || 0); if (state.editingProductId) { const payload = { name, price, details, shopifyVariantId }; if (image1Id) payload.image1Id = image1Id; if (image2Id) payload.image2Id = image2Id; await api(`/admin/products/${state.editingProductId}`, `PUT`, payload); } else { await api(`/admin/products`, `POST`, { name, price, image1Id, image2Id, details, shopifyVariantId }); } resetProductForm(); await loadCatalog(); }); };
 $(`#fabric-form`).onsubmit = async (e) => { e.preventDefault(); const form = e.currentTarget; await submit(form, $(`#fabric-message`), async () => { const f = new FormData(form); await api(`/admin/fabrics`, `POST`, { name: f.get(`name`), imageId: await upload(f.get(`image`)) }); form.reset(); await loadCatalog(); }); };
 $(`#settings-form`).onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); await api(`/admin/settings`, `PUT`, { currency: f.get(`currency`), shopDomain: f.get(`shopDomain`), customVariantId: f.get(`customVariantId`), policyText: f.get(`policyText`), sizeNote: f.get(`sizeNote`) }); $(`#settings-message`).textContent = `Settings saved.`; await loadCatalog(); };
 account.get().then(async()=>{ view(`dashboard`); await loadCatalog(); await loadOrders(); }).catch(()=>view(`login`));

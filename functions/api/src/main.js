@@ -310,6 +310,27 @@ export default async ({ req, res }) => {
       return ok(res, { ok: true });
     }
 
+    const productMatch = requestPath.match(/^\/admin\/products\/([^/]+)$/);
+    if (productMatch && req.method === `PUT`) {
+      const data = body(req);
+      if (!String(data.name || ``).trim() || Number(data.price) <= 0) throw new Error(`Product name and a valid price are required.`);
+      const suppliedVariant = String(data.shopifyVariantId || ``).trim();
+      const variantId = normalizeVariantId(suppliedVariant);
+      if (suppliedVariant && !variantId) throw new Error(`Enter a Shopify variant ID or variant admin URL.`);
+      const productId = productMatch[1];
+      await db.getDocument(databaseId, collection.products, productId);
+      const updateData = {
+        name: String(data.name).trim(),
+        price: Number(data.price),
+        detailsJson: JSON.stringify(data.details || [])
+      };
+      if (Object.hasOwn(data, 'image1Id')) updateData.image1Id = data.image1Id;
+      if (Object.hasOwn(data, 'image2Id')) updateData.image2Id = data.image2Id;
+      const row = await db.updateDocument(databaseId, collection.products, productId, updateData);
+      await upsertSetting(db, variantSettingId(productId), variantId);
+      return ok(res, pack(row, await getSettings(db)));
+    }
+
     if (requestPath.startsWith(`/admin/products/`) && req.method === `DELETE`) {
       await db.updateDocument(databaseId, collection.products, requestPath.split(`/`).pop(), { active: false });
       return ok(res, { ok: true });
