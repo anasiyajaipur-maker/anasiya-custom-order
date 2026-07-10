@@ -46,12 +46,12 @@ await stringAttr(`products`, `name`, 255, true); await intAttr(`products`, `pric
 await makeCollection(`fabrics`, `Fabrics`);
 await stringAttr(`fabrics`, `name`, 255, true); await stringAttr(`fabrics`, `imageId`, 255); await boolAttr(`fabrics`, `active`); await intAttr(`fabrics`, `sortOrder`);
 await makeCollection(`orders`, `Orders`);
-await stringAttr(`orders`, `productId`, 255); await stringAttr(`orders`, `fabricId`, 255); await stringAttr(`orders`, `productName`, 255); await stringAttr(`orders`, `fabricName`, 255); await stringAttr(`orders`, `size`, 80); await intAttr(`orders`, `price`); await stringAttr(`orders`, `status`, 80); await stringAttr(`orders`, `createdAt`, 80);
+await stringAttr(`orders`, `productId`, 255); await stringAttr(`orders`, `fabricId`, 255); await stringAttr(`orders`, `productName`, 255); await stringAttr(`orders`, `fabricName`, 255); await stringAttr(`orders`, `size`, 80); await intAttr(`orders`, `price`); await stringAttr(`orders`, `status`, 80); await stringAttr(`orders`, `createdAt`, 80); await stringAttr(`orders`, `shopifyOrderNumber`, 255); await stringAttr(`orders`, `customerName`, 255); await stringAttr(`orders`, `customerPhone`, 255); await stringAttr(`orders`, `customerEmail`, 255); await stringAttr(`orders`, `shippingAddress`, 2048); await boolAttr(`orders`, `osPulled`, false);
 await makeCollection(`settings`, `Settings`);
 await stringAttr(`settings`, `key`, 255, true); await stringAttr(`settings`, `value`, 4096);
 await waitForAttributes(`products`, [`name`, `price`, `image1Id`, `image2Id`, `detailsJson`, `active`, `sortOrder`]);
 await waitForAttributes(`fabrics`, [`name`, `imageId`, `active`, `sortOrder`]);
-await waitForAttributes(`orders`, [`productId`, `fabricId`, `productName`, `fabricName`, `size`, `price`, `status`, `createdAt`]);
+await waitForAttributes(`orders`, [`productId`, `fabricId`, `productName`, `fabricName`, `size`, `price`, `status`, `createdAt`, `shopifyOrderNumber`, `customerName`, `customerPhone`, `customerEmail`, `shippingAddress`, `osPulled`]);
 await waitForAttributes(`settings`, [`key`, `value`]);
 await ensureBucket();
 const defaults = { currency: `INR`, shopDomain: process.env.SHOP_DOMAIN || `anasiya.com`, customVariantId: process.env.CUSTOM_VARIANT_ID || ``, policyText: `Custom orders are prepared specially for you. Final stitching, fabric placement, and delivery timelines may vary slightly based on availability and handwork.`, sizeNote: `Choose the size closest to your measurements. For custom sizing, our team will contact you after your order is placed.` };

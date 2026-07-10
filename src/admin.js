@@ -123,12 +123,59 @@ function renderFabrics() {
 }
 function renderOrders() {
   const sync = `<div class="sync-status ${state.shopify.webhookConfigured ? `is-ready` : `is-pending`}"><strong>${state.shopify.webhookConfigured ? `Shopify sync ready` : `Shopify sync needs setup`}</strong><span>${state.shopify.webhookConfigured ? `Paid Shopify orders update here automatically.` : `Add the webhook secret and register the paid-order webhook.`}</span></div>`;
-  const rows = state.orders.length ? state.orders.map((o) => {
-    const label = o.status === `paid` ? `Paid in Shopify` : o.status === `checkout_pending` ? `Checkout started` : `New`;
+  const paidOrders = state.orders.filter(o => o.status === `paid`);
+  const rows = paidOrders.length ? paidOrders.map((o) => {
     const date = o.createdAt ? new Date(o.createdAt).toLocaleString(`en-IN`, { dateStyle: `medium`, timeStyle: `short` }) : ``;
-    return `<article class="order-item"><div class="order-top"><strong>${esc(o.productName || `Custom order`)}</strong><span class="status-pill status-${esc(o.status || `new`)}">${label}</span></div><div class="order-row"><span>Print</span><strong>${esc(o.fabricName)}</strong><span>Size</span><strong>${esc(o.size || `—`)}</strong><span>Amount</span><strong>${esc(state.catalog.settings.currency || `INR`)} ${Number(o.price || 0).toLocaleString(`en-IN`)}</strong>${date ? `<span>${esc(date)}</span>` : ``}</div></article>`;
-  }).join(``) : `<div class="empty-card"><p>No custom order checkouts yet.</p></div>`;
+    const orderNo = o.shopifyOrderNumber || `SH-order`;
+    return `
+      <article class="order-item collapsible-order" data-order-id="${o.$id}" style="cursor: pointer; position: relative;">
+        <div class="order-top">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-family: monospace; font-size: 13px; background: var(--base-soft); color: var(--base-dark); padding: 3px 6px; border-radius: 4px;">${esc(orderNo)}</span>
+            <strong>${esc(o.productName || `Custom order`)}</strong>
+          </div>
+          <span class="status-pill status-paid">Confirmed</span>
+        </div>
+        <div class="order-row">
+          <span>Print</span><strong>${esc(o.fabricName)}</strong>
+          <span>Size</span><strong>${esc(o.size || `—`)}</strong>
+          <span>Amount</span><strong>${esc(state.catalog.settings.currency || `INR`)} ${Number(o.price || 0).toLocaleString(`en-IN`)}</strong>
+          ${date ? `<span>${esc(date)}</span>` : ``}
+        </div>
+        <div class="order-details-drawer is-hidden" id="details-${o.$id}" style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); animation: fadeIn 0.2s ease;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div>
+              <h4 style="margin: 0 0 6px 0; font-size: 11px; text-transform: uppercase; color: var(--base); letter-spacing: 0.05em;">Customer Info</h4>
+              <p style="margin: 0 0 4px 0; color: var(--ink); font-weight: 600;">${esc(o.customerName || 'N/A')}</p>
+              <p style="margin: 0 0 4px 0; font-size: 13px;">Email: <a href="mailto:${esc(o.customerEmail || '')}" style="color: var(--base-dark); text-decoration: none;">${esc(o.customerEmail || 'N/A')}</a></p>
+              <p style="margin: 0; font-size: 13px;">Phone: ${esc(o.customerPhone || 'N/A')}</p>
+            </div>
+            <div>
+              <h4 style="margin: 0 0 6px 0; font-size: 11px; text-transform: uppercase; color: var(--base); letter-spacing: 0.05em;">Shipping Address</h4>
+              <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink);">${esc(o.shippingAddress || 'No address provided')}</p>
+            </div>
+          </div>
+          <div style="margin-top: 14px; display: flex; justify-content: flex-end;">
+            <a class="ghost-action" href="https://${esc(state.catalog.settings.shopDomain || 'anasiya.com')}/admin/orders" target="_blank" style="text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 5px 12px;">
+              View in Shopify Admin ↗
+            </a>
+          </div>
+        </div>
+        <div style="text-align: center; margin-top: 8px; font-size: 11px; color: var(--base); font-weight: 600;" class="toggle-hint">
+          Click to show details
+        </div>
+      </article>
+    `;
+  }).join(``) : `<div class="empty-card"><p>No confirmed custom orders yet.</p></div>`;
   $(`#orders-list`).innerHTML = sync + rows;
+  $$(`.collapsible-order`).forEach((card) => {
+    card.onclick = () => {
+      const drawer = card.querySelector(`.order-details-drawer`);
+      const hint = card.querySelector(`.toggle-hint`);
+      const isHidden = drawer.classList.toggle(`is-hidden`);
+      hint.textContent = isHidden ? `Click to show details` : `Click to hide details`;
+    };
+  });
 }
 function fillSettings() { const f = $(`#settings-form`); f.currency.value = state.catalog.settings.currency || `INR`; f.shopDomain.value = state.catalog.settings.shopDomain || `anasiya.com`; f.customVariantId.value = state.catalog.settings.customVariantId || ``; f.policyText.value = state.catalog.settings.policyText || ``; f.sizeNote.value = state.catalog.settings.sizeNote || ``; }
 async function loadCatalog() { state.catalog = await api(`/catalog`); renderProducts(); renderFabrics(); fillSettings(); }

@@ -224,7 +224,25 @@ export default async ({ req, res }) => {
       const intentId = orderIntentId(shopifyPayload);
       if (intentId) {
         try {
-          await db.updateDocument(databaseId, collection.orders, intentId, { status: `paid`, osPulled: false });
+          const shopifyOrderNumber = shopifyPayload.name || `#${shopifyPayload.order_number || ''}`;
+          const cust = shopifyPayload.customer || {};
+          const customerName = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || shopifyPayload.shipping_address?.name || 'Customer';
+          const customerEmail = shopifyPayload.email || shopifyPayload.contact_email || cust.email || '';
+          const customerPhone = shopifyPayload.phone || cust.phone || shopifyPayload.shipping_address?.phone || '';
+          const addr = shopifyPayload.shipping_address;
+          const shippingAddress = addr 
+            ? [addr.name, addr.address1, addr.address2, addr.city, addr.province, addr.zip, addr.country].filter(Boolean).join(', ')
+            : 'No shipping address';
+
+          await db.updateDocument(databaseId, collection.orders, intentId, { 
+            status: `paid`, 
+            osPulled: false,
+            shopifyOrderNumber,
+            customerName,
+            customerEmail,
+            customerPhone,
+            shippingAddress
+          });
           // Fetch the full order document so we have productName, fabricName, size, price
           const appwriteOrder = await db.getDocument(databaseId, collection.orders, intentId);
           // Push directly to Anasiya OS Firestore (non-blocking — errors are warned, not thrown)
